@@ -1,16 +1,16 @@
 <template>
     <div id="app">
-        <Main />
+        <StockAlertMain />
     </div>
 </template>
 
 <script>
-import Main from './components/main.vue';
+import StockAlertMain from './components/StockAlertMain.vue';
 
 export default {
     name: 'App',
     components: {
-        Main,
+        StockAlertMain,
     },
 };
 </script>
