@@ -1,16 +1,14 @@
 <template>
-    <div id="app">
-        <StockAlertMain />
-    </div>
+    <router-view />
 </template>
 
-<script>
-import StockAlertMain from './components/StockAlertMain.vue';
+<script setup></script>
 
-export default {
-    name: 'App',
-    components: {
-        StockAlertMain,
-    },
-};
-</script>
+<style>
+body {
+    font-family: sans-serif;
+    margin: 0;
+    padding: 0;
+    background: #f5f6fa;
+}
+</style>
