@@ -126,7 +126,7 @@
                                     {{ conditionKorean(a.condition) }}
                                 </span>
                                 <span class="dot">•</span>
-                                <span class="price">{{ formatPrice(a.price) }}원</span>
+                                <span class="price">{{ formatPrice(a.price) }} {{ a.currencyCode || 'KRW' }}</span>
                             </div>
                         </div>
 
@@ -414,13 +414,15 @@ const selectSuggestion = async (item) => {
         if (!detail) return;
 
         form.value.stockCode = detail.code;
-        searchQuery.value = `${detail.name} (${detail.code}) · ${formatPrice(detail.price)}`;
-
+        searchQuery.value = `${detail.name} (${detail.code}) · ${formatPrice(detail.price)} ${
+            detail.currencyCode || 'KRW'
+        }`;
         selectedStock.value = {
             code: detail.code,
             url: item.url || '',
             price: Number(detail.price),
             name: detail.name,
+            currencyCode: detail.currencyCode || 'KRW',
         };
 
         // 지정가 자동 채우기 유지
@@ -471,6 +473,7 @@ const submitForm = async () => {
             code: selectedStock.value.code,
             url: selectedStock.value.url,
             name: selectedStock.value.name,
+            currencyCode: selectedStock.value.currencyCode,
         },
         requestEmail: form.value.email.trim(),
         currentPrice: currentPrice ?? 0,
