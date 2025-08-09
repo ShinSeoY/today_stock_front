@@ -17,7 +17,6 @@
 
                 <small>검색어 입력 시 자동으로 결과가 나타납니다.</small>
 
-                <!-- 드롭다운 -->
                 <div v-if="showSuggestions" class="suggestions">
                     <div v-if="isSearching && suggestions.length === 0" class="suggestions-empty">검색 중…</div>
 
@@ -26,7 +25,6 @@
                             검색 결과가 없습니다.
                         </div>
 
-                        <!-- ✅ 스크롤 이벤트 연결 -->
                         <ul
                             v-else
                             class="suggestions-list"
@@ -59,9 +57,17 @@
                 </div>
             </div>
 
+            <!-- 이메일 -->
             <div class="form-group">
                 <label>알림받을 이메일</label>
-                <input v-model="form.email" placeholder="email@example.com" />
+                <input
+                    v-model="form.email"
+                    placeholder="email@example.com"
+                    type="email"
+                    inputmode="email"
+                    autocomplete="email"
+                    ref="emailInput"
+                />
             </div>
 
             <!-- 지정가 -->
@@ -157,6 +163,7 @@ const isSubmitting = ref(false);
 const thresholdInput = ref(null);
 const percentInput = ref(null);
 const searchWrap = ref(null);
+const emailInput = ref(null);
 const form = ref({
     stockCode: '',
     email: '',
@@ -187,6 +194,12 @@ let inFlight = false; // 중복 호출 방지
 // 서로 배타 잠금 플래그
 const isThresholdLocked = computed(() => !!form.value.percent?.toString().trim());
 const isPercentLocked = computed(() => !!form.value.threshold?.toString().trim());
+
+const isValidEmail = (v) => {
+    const s = String(v || '').trim();
+    if (!s) return false;
+    return /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(s);
+};
 
 /** === 공통 API 래퍼 === **/
 const API_BASE_URL = (import.meta.env?.VITE_API_BASE_URL || 'http://localhost:8080').replace(/\/?$/, '/');
@@ -430,8 +443,17 @@ const submitForm = async () => {
         alert('종목을 먼저 선택해주세요.');
         return;
     }
+
     if (!form.value.email?.trim()) {
         alert('알림받을 이메일을 입력해주세요.');
+        emailInput.value?.focus?.();
+        return;
+    }
+
+    if (!isValidEmail(form.value.email)) {
+        alert('이메일 형식이 올바르지 않습니다. 예: name@example.com');
+        emailInput.value?.focus?.();
+        emailInput.value?.select?.();
         return;
     }
 
