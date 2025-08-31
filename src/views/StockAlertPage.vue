@@ -115,32 +115,71 @@
                 <div v-else-if="alarms.length === 0" class="alarm-empty">등록된 알림이 없습니다.</div>
 
                 <ul v-else class="alarm-items">
-                    <li v-for="a in alarms" :key="a.code + String(a.date)" class="alarm-card">
+                    <li
+                        v-for="a in alarms"
+                        :key="a.code + String(a.date)"
+                        class="alarm-card"
+                        :class="{ disabled: a.enable === false }"
+                    >
                         <div class="a-left">
                             <div class="title-row">
                                 <span class="name">{{ a.name }}</span>
                                 <span class="code">· {{ a.code }}</span>
                             </div>
+
                             <div class="meta-row">
                                 <span class="chip" :class="a.condition === 'GTE' ? 'chip-up' : 'chip-down'">
                                     {{ conditionKorean(a.condition) }}
                                 </span>
+
                                 <span class="dot">•</span>
                                 <span class="price">{{ formatPrice(a.price) }} {{ a.currencyCode || 'KRW' }}</span>
                             </div>
                         </div>
 
                         <div class="a-right">
-                            <button
-                                type="button"
-                                class="delete-button"
-                                @click="confirmDelete(a.code)"
-                                :disabled="isDeleting(a.code)"
-                                aria-label="알림 삭제"
-                                title="알림 삭제"
-                            >
-                                {{ isDeleting(a.code) ? '삭제 중…' : '삭제' }}
-                            </button>
+                            <!-- 상태 배지: 비활성일 때만 노출 -->
+                            <span v-if="a.enable === false" class="status-badge off">비활성화됨</span>
+
+                            <!-- 비활성 카드: 활성화 버튼만 -->
+                            <div v-if="a.enable === false" class="btn-row">
+                                <button
+                                    type="button"
+                                    class="activate-button"
+                                    @click="activateAlarm(a)"
+                                    :disabled="isDeleting(a.code) || isDisabling(a.code)"
+                                    aria-label="알림 활성화"
+                                    title="알림 활성화"
+                                >
+                                    {{ isDeleting(a.code) || isDisabling(a.code) ? '처리 중…' : '활성화' }}
+                                </button>
+                            </div>
+
+                            <!-- 활성 카드: 비활성화/삭제 나란히 -->
+                            <div v-else class="btn-row">
+                                <button
+                                    type="button"
+                                    class="disable-button"
+                                    @click="confirmDisable(a.code)"
+                                    :disabled="isDeleting(a.code) || isDisabling(a.code)"
+                                    aria-label="알림 비활성화"
+                                    title="알림 비활성화"
+                                >
+                                    {{ isDisabling(a.code) ? '비활성화 중…' : '비활성화' }}
+                                </button>
+
+                                <button
+                                    type="button"
+                                    class="delete-button"
+                                    @click="confirmDelete(a.code)"
+                                    :disabled="isDeleting(a.code) || isDisabling(a.code)"
+                                    aria-label="알림 삭제"
+                                    title="알림 삭제"
+                                >
+                                    {{ isDeleting(a.code) ? '삭제 중…' : '삭제' }}
+                                </button>
+                            </div>
+
                             <span class="date">{{ formatDate(a.date) }}</span>
                             <span class="email">{{ a.email }}</span>
                         </div>
@@ -529,10 +568,77 @@ const loadAlarms = async () => {
     }
 };
 
-// ===== 삭제 상태 관리 =====
-const deleting = reactive({}); // code -> boolean
+// 활성화: 비활성 알림을 /save 로 재저장
+const activateAlarm = async (a) => {
+    try {
+        deleting[a.code] = true;
+
+        const payload = {
+            stock: {
+                code: a.code,
+                url: a.url || '',
+                name: a.name,
+                currencyCode: a.currencyCode || 'KRW',
+            },
+            requestEmail: String(a.email || '').trim(),
+            calcPrice: Number(a.price),
+            condition: a.condition || 'GTE',
+        };
+
+        const res = await api('/api/v1/user/alarm', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(json?.message || '알림 활성화에 실패했습니다.');
+
+        alert('알림이 활성화되었어요!');
+        await loadAlarms();
+    } catch (e) {
+        console.error(e);
+        alert(e.message || '활성화 중 오류가 발생했습니다.');
+    } finally {
+        deleting[a.code] = false;
+    }
+};
+
+// ===== 삭제/비활성화 상태 관리 =====
+const deleting = reactive({}); // code -> boolean (기존)
+const disabling = reactive({}); // code -> boolean (신규)
 
 const isDeleting = (code) => !!deleting[code];
+const isDisabling = (code) => !!disabling[code];
+
+// 비활성화 확인 다이얼로그
+const confirmDisable = async (code) => {
+    if (!code) return;
+    if (!confirm('이 알림을 비활성화할까요?')) return;
+    await disableAlarm(code);
+};
+
+// /disable 호출
+const disableAlarm = async (code) => {
+    try {
+        disabling[code] = true;
+
+        const url = `/api/v1/user/alarm/${encodeURIComponent(code)}`;
+        const res = await api(url, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(json?.message || '알림 비활성화에 실패했습니다.');
+
+        alert('알림이 비활성화되었어요.');
+        await loadAlarms();
+    } catch (e) {
+        console.error(e);
+        alert(e.message || '비활성화 중 오류가 발생했습니다.');
+    } finally {
+        disabling[code] = false;
+    }
+};
 
 const confirmDelete = async (code) => {
     if (!code) return;
@@ -561,6 +667,7 @@ const deleteAlarm = async (code) => {
 </script>
 
 <style scoped>
+/* ===== 레이아웃 ===== */
 .page-container {
     display: flex;
     justify-content: center;
@@ -580,11 +687,12 @@ h2 {
     margin-bottom: 20px;
 }
 
+/* ===== 폼 공통 ===== */
 .form-group {
     margin-bottom: 16px;
     display: flex;
     flex-direction: column;
-    position: relative; /* 드롭다운 포지셔닝용 */
+    position: relative; /* 드롭다운 포지셔닝 */
 }
 
 input,
@@ -611,7 +719,7 @@ small {
     margin-top: 4px;
 }
 
-/* 드롭다운 */
+/* ===== 자동완성 드롭다운 ===== */
 .suggestions {
     position: absolute;
     top: calc(100% + 6px);
@@ -627,20 +735,18 @@ small {
     display: flex;
     flex-direction: column;
 }
-
 .suggestions-empty {
     padding: 14px 12px;
     color: #6b7280;
     font-size: 14px;
 }
-
 .suggestions-list {
     list-style: none;
     margin: 0;
     padding: 6px 0;
     overflow-y: auto;
+    max-height: 320px;
 }
-
 .suggestions-item {
     padding: 10px 12px;
     display: grid;
@@ -652,7 +758,6 @@ small {
 .suggestions-item.active {
     background: #f3f4f6;
 }
-
 .item-primary {
     display: flex;
     gap: 8px;
@@ -677,30 +782,7 @@ mark {
     border-radius: 3px;
 }
 
-.toggle-buttons {
-    display: flex;
-    gap: 10px;
-    margin-top: 8px;
-}
-
-.toggle-buttons button {
-    flex: 1;
-    padding: 10px;
-    border: 1px solid #ccc;
-    border-radius: 6px;
-    background-color: #f5f5f5;
-    color: #333;
-    cursor: pointer;
-    font-weight: 500;
-    transition: all 0.2s ease;
-}
-
-.toggle-buttons button.selected {
-    background-color: #2563eb;
-    color: white;
-    border: 1px solid #2563eb;
-}
-
+/* ===== 제출 버튼 ===== */
 .submit-button {
     width: 100%;
     padding: 12px;
@@ -713,32 +795,16 @@ mark {
     margin-top: 8px;
 }
 
+/* ===== 리스트 컨테이너 ===== */
 .alert-list-title {
     margin-top: 32px;
     font-weight: bold;
 }
 
-.suggestions-list {
-    list-style: none;
-    margin: 0;
-    padding: 6px 0;
-    overflow-y: auto;
-    max-height: 320px;
-}
-
-.suggestions-empty {
-    padding: 12px;
-    color: #6b7280;
-    font-size: 14px;
-    text-align: center;
-}
-
-/* 리스트 컨테이너 */
 .alarm-list {
     margin-top: 12px;
 }
 
-/* 비어있음/에러/로딩 */
 .alarm-empty {
     padding: 12px;
     color: #6b7280;
@@ -749,7 +815,7 @@ mark {
     border-radius: 8px;
 }
 
-/* 리스트/아이템 */
+/* ===== 알림 카드 ===== */
 .alarm-items {
     list-style: none;
     padding: 0;
@@ -757,6 +823,7 @@ mark {
     display: grid;
     gap: 10px;
 }
+
 .alarm-card {
     display: grid;
     grid-template-columns: 1fr auto;
@@ -765,10 +832,38 @@ mark {
     background: #fff;
     border: 1px solid #e5e7eb;
     border-radius: 12px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05); /* 폼 카드와 톤 맞춤 */
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+}
+.alarm-card:hover {
+    border-color: #c7d2fe; /* indigo-200 느낌 */
+    box-shadow: 0 4px 14px rgba(37, 99, 235, 0.08);
 }
 
-/* 좌측 영역 */
+/* 비활성 카드: 배경/테두리/텍스트를 회색톤으로 */
+.alarm-card.disabled {
+    background: #f9fafb; /* 옅은 회색 배경 */
+    border: 1px solid #e5e7eb;
+    color: #6b7280; /* 텍스트 전체 톤 다운 */
+    opacity: 1; /* 기존의 흐림(opacity) 대신 확실한 색상톤 사용 */
+    filter: none; /* grayscale 제거 */
+}
+
+/* 비활성 카드 안의 제목/코드/가격도 회색 계열 */
+.alarm-card.disabled .name,
+.alarm-card.disabled .code,
+.alarm-card.disabled .price,
+.alarm-card.disabled .date,
+.alarm-card.disabled .email {
+    color: #9ca3af; /* 더 옅은 회색 */
+}
+
+/* 비활성 카드 hover 시 효과 제거 (활성 카드와 구분) */
+.alarm-card.disabled:hover {
+    border-color: #e5e7eb;
+    box-shadow: none;
+}
+
+/* ===== 좌측(제목/메타) ===== */
 .title-row {
     display: flex;
     gap: 6px;
@@ -808,23 +903,113 @@ mark {
     font-weight: 600;
 }
 .chip-up {
-    background: #eff6ff; /* 파랑 라이트 */
+    background: #eff6ff;
     color: #2563eb;
     border-color: #dbeafe;
 }
 .chip-down {
-    background: #fef2f2; /* 레드 라이트 */
+    background: #fef2f2;
     color: #dc2626;
     border-color: #fee2e2;
 }
 
-/* 우측 영역 */
+/* ===== 우측(버튼/정보) ===== */
 .a-right {
     text-align: right;
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    align-items: flex-end;
+    gap: 8px;
 }
+
+/* 상태 배지(우측 상단만 사용) */
+.status-badge {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 9999px;
+    border: 1px solid #e5e7eb;
+}
+.status-badge.off {
+    background: #f3f4f6;
+    color: #6b7280;
+    border-color: #e5e7eb;
+}
+
+/* 버튼 가로 정렬 */
+.btn-row {
+    display: flex;
+    gap: 6px;
+}
+
+/* 공용 버튼 크기 */
+.btn-row button,
+.delete-button,
+.disable-button,
+.activate-button {
+    padding: 6px 10px;
+    font-size: 12px;
+    border-radius: 9999px;
+    transition:
+        border-color 0.15s ease,
+        box-shadow 0.15s ease,
+        background-color 0.15s ease;
+}
+
+/* 활성화 버튼 */
+.activate-button {
+    background: #2563eb;
+    color: #ffffff;
+    border: 1px solid #2563eb;
+    cursor: pointer;
+}
+.activate-button:hover {
+    background: #1d4ed8;
+    border-color: #1d4ed8;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+.activate-button:disabled {
+    opacity: 0.6;
+    cursor: default;
+    box-shadow: none;
+}
+
+/* 비활성화 버튼 */
+.disable-button {
+    background: #fff7ed; /* orange-50 */
+    color: #c2410c; /* orange-700 */
+    border: 1px solid #fed7aa; /* orange-200 */
+    cursor: pointer;
+}
+.disable-button:hover {
+    background: #ffedd5; /* orange-100 */
+    border-color: #fb923c; /* orange-400 */
+    box-shadow: 0 0 0 3px rgba(251, 146, 60, 0.15);
+}
+.disable-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+/* 삭제 버튼 */
+.delete-button {
+    background: #ffffff;
+    color: #b91c1c;
+    border: 1px solid #fca5a5; /* light red */
+    cursor: pointer;
+}
+.delete-button:hover {
+    background: #fff5f5;
+    border-color: #ef4444;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
+}
+.delete-button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+/* 날짜/이메일 */
 .date {
     font-size: 12px;
     color: #9ca3af;
@@ -834,7 +1019,7 @@ mark {
     color: #6b7280;
 }
 
-/* 새로고침 버튼: 폼 톤에 맞춘 세컨더리 스타일 */
+/* ===== 새로고침 버튼 ===== */
 .refresh-button {
     width: 100%;
     margin-top: 12px;
@@ -854,45 +1039,6 @@ mark {
     box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 .refresh-button:disabled {
-    opacity: 0.6;
-    cursor: default;
-    box-shadow: none;
-}
-/* 카드 hover 톤 업 */
-.alarm-card:hover {
-    border-color: #c7d2fe; /* indigo-200 느낌 */
-    box-shadow: 0 4px 14px rgba(37, 99, 235, 0.08);
-}
-
-/* 우측 영역 정렬 */
-.a-right {
-    text-align: right;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    align-items: flex-end;
-}
-
-/* 삭제 버튼: 고스트/라운드/폼 톤 */
-.delete-button {
-    padding: 6px 10px;
-    font-size: 12px;
-    border-radius: 9999px;
-    background: #ffffff;
-    color: #b91c1c;
-    border: 1px solid #fca5a5; /* light red */
-    cursor: pointer;
-    transition:
-        border-color 0.15s ease,
-        box-shadow 0.15s ease,
-        background-color 0.15s ease;
-}
-.delete-button:hover {
-    background: #fff5f5;
-    border-color: #ef4444;
-    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
-}
-.delete-button:disabled {
     opacity: 0.6;
     cursor: default;
     box-shadow: none;
