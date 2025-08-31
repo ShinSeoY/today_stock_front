@@ -1009,7 +1009,6 @@ mark {
     box-shadow: none;
 }
 
-/* 날짜/이메일 */
 .date {
     font-size: 12px;
     color: #9ca3af;
