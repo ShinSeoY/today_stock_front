@@ -52,5 +52,6 @@ jobs:
                   IMAGE_LATEST=$REGISTRY/$APP:latest
 
                   docker buildx build \
+                    --platform linux/amd64
                     -t "$IMAGE_SHA" -t "$IMAGE_LATEST" \
                     --push .
