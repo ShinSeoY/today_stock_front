@@ -35,7 +35,7 @@
                             <li
                                 v-for="(item, idx) in suggestions"
                                 :key="item.code + (item.url || '') + idx"
-                                :class="['suggestions-item', { active: idx === highlightedIndex }]"
+                                :class="['suggestions-item', {active: idx === highlightedIndex}]"
                                 role="option"
                                 @mousedown.prevent="selectSuggestion(item)"
                                 @mouseover="highlightedIndex = idx"
@@ -119,7 +119,7 @@
                         v-for="a in alarms"
                         :key="a.code + String(a.date)"
                         class="alarm-card"
-                        :class="{ disabled: a.enable === false }"
+                        :class="{disabled: a.enable === false}"
                     >
                         <div class="a-left">
                             <div class="title-row">
@@ -195,7 +195,7 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onBeforeUnmount, nextTick, computed, reactive } from 'vue';
+import {ref, watch, onMounted, onBeforeUnmount, nextTick, computed, reactive} from 'vue';
 
 const selectedStock = ref(null);
 const isSubmitting = ref(false);
@@ -241,10 +241,10 @@ const isValidEmail = (v) => {
 };
 
 /** === 공통 API 래퍼 === **/
-const API_BASE_URL = (import.meta.env?.VITE_API_BASE_URL || 'http://localhost:8080').replace(/\/?$/, '/');
+const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL || '/api';
 const api = (path, options = {}) => {
     const url = new URL(path, API_BASE_URL).toString();
-    return fetch(url, { credentials: 'include', ...options });
+    return fetch(url, {credentials: 'include', ...options});
 };
 
 const alarms = ref([]);
@@ -354,8 +354,8 @@ const onSuggestionsScroll = (e) => {
 const fetchSearchPage = async (keyword, page) => {
     const res = await api('/api/v1/user/stock/search', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ keyword, page }),
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({keyword, page}),
     });
     const json = await res.json();
     const list = json?.data ?? json?.result ?? [];
@@ -430,10 +430,10 @@ const onKeydown = (e) => {
 
 /** === 상세 조회 === **/
 const fetchDetail = async (item) => {
-    const payload = item?.url ? { url: item.url } : { code: item.code };
+    const payload = item?.url ? {url: item.url} : {code: item.code};
     const res = await api('/api/v1/user/stock/detail', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(payload),
     });
     const json = await res.json();
@@ -525,7 +525,7 @@ const submitForm = async () => {
         isSubmitting.value = true;
         const res = await api('/api/v1/user/alarm', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(payload),
         });
         const json = await res.json().catch(() => ({}));
@@ -554,7 +554,7 @@ const loadAlarms = async () => {
         alarmsError.value = '';
         const res = await api('/api/v1/user/alarm', {
             method: 'GET',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {'Content-Type': 'application/json'},
         });
         const json = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(json?.message || '알림 목록을 불러오지 못했습니다.');
@@ -587,7 +587,7 @@ const activateAlarm = async (a) => {
 
         const res = await api('/api/v1/user/alarm', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(payload),
         });
         const json = await res.json().catch(() => ({}));
@@ -625,7 +625,7 @@ const disableAlarm = async (code) => {
         const url = `/api/v1/user/alarm/${encodeURIComponent(code)}`;
         const res = await api(url, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {'Content-Type': 'application/json'},
         });
         const json = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(json?.message || '알림 비활성화에 실패했습니다.');
@@ -652,7 +652,7 @@ const deleteAlarm = async (code) => {
         const url = `/api/v1/user/alarm/${encodeURIComponent(code)}`;
         const res = await api(url, {
             method: 'DELETE',
-            headers: { Accept: 'application/json' },
+            headers: {Accept: 'application/json'},
         });
         const json = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(json?.message || '알림 삭제에 실패했습니다.');
