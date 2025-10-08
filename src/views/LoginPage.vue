@@ -17,7 +17,6 @@
 const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL || '/api';
 const googleLoginUrl = API_BASE_URL + '/oauth2/authorization/google';
 const kakaoLoginUrl = API_BASE_URL + '/oauth2/authorization/kakao';
-console.log('✅ VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL);
 console.log('✅ googleLoginUrl :', googleLoginUrl);
 console.log('✅ kakaoLoginUrl :', kakaoLoginUrl);
 </script>
