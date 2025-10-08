@@ -7,6 +7,10 @@
     
     COPY . .
     # VITE_API_BASE_URL은 Actions에서 주입(혹은 --build-arg로도 가능)
+    ARG VITE_API_BASE_URL
+
+    ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+
     RUN npm run build
     
     # ---------- serve ----------
@@ -18,4 +22,3 @@
     
     EXPOSE 80
     CMD ["nginx", "-g", "daemon off;"]
-    
