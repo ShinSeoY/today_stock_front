@@ -53,6 +53,7 @@ jobs:
                   IMAGE_LATEST=$REGISTRY/$APP:latest
 
                   docker buildx build \
+                    --build-arg VITE_API_BASE_URL=/api \
                     --platform linux/amd64 \
                     --no-cache \
                     -t "$IMAGE_SHA" \
