@@ -1,7 +1,6 @@
 <template>
     <div class="login-wrapper">
         <div class="login-box">
-            <h1>testest</h1>
             <h1>📌 주식 알림 서비스</h1>
             <a :href="googleLoginUrl">
                 <button class="login-button google">Google로 간편 로그인</button>
@@ -17,8 +16,6 @@
 const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL || '/api';
 const googleLoginUrl = API_BASE_URL + '/oauth2/authorization/google';
 const kakaoLoginUrl = API_BASE_URL + '/oauth2/authorization/kakao';
-console.log('✅ googleLoginUrl :', googleLoginUrl);
-console.log('✅ kakaoLoginUrl :', kakaoLoginUrl);
 </script>
 
 <style scoped>
