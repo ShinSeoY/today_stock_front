@@ -241,9 +241,13 @@ const isValidEmail = (v) => {
 };
 
 /** === 공통 API 래퍼 === **/
-const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL || '/api';
+const RAW_API_BASE = import.meta.env?.VITE_API_BASE_URL || '/api';
+
+// '/api' 같은 상대 경로면 현재 오리진을 붙여 절대 URL로 변환
+const API_BASE = new URL(RAW_API_BASE, window.location.origin);
+
 const api = (path, options = {}) => {
-    const url = new URL(path, API_BASE_URL).toString();
+    const url = new URL(path, API_BASE).toString();
     return fetch(url, {credentials: 'include', ...options});
 };
 
