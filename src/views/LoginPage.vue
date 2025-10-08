@@ -13,8 +13,9 @@
 </template>
 
 <script setup>
-const googleLoginUrl = 'http://localhost:8080/oauth2/authorization/google';
-const kakaoLoginUrl = 'http://localhost:8080/oauth2/authorization/kakao';
+const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL || '/api';
+const googleLoginUrl = API_BASE_URL + '/oauth2/authorization/google';
+const kakaoLoginUrl = API_BASE_URL + '/oauth2/authorization/kakao';
 </script>
 
 <style scoped>
