@@ -247,6 +247,7 @@ const RAW_API_BASE = import.meta.env?.VITE_API_BASE_URL || '/api';
 const API_BASE = new URL(RAW_API_BASE, window.location.origin);
 
 const api = (path, options = {}) => {
+    console.log('API_BASE=', API_BASE.toString());
     const url = new URL(path, API_BASE).toString();
     return fetch(url, {credentials: 'include', ...options});
 };
