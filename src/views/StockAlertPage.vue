@@ -244,11 +244,12 @@ const isValidEmail = (v) => {
 const RAW_API_BASE = import.meta.env?.VITE_API_BASE_URL || '/api';
 
 // '/api' 같은 상대 경로면 현재 오리진을 붙여 절대 URL로 변환
-const API_BASE = new URL(RAW_API_BASE, window.location.origin);
+const BASE = RAW_API_BASE.endsWith('/') ? RAW_API_BASE : RAW_API_BASE + '/';
+const API_BASE = new URL(BASE, window.location.origin);
 
 const api = (path, options = {}) => {
-    console.log('API_BASE=', API_BASE.toString());
-    const url = new URL(path, API_BASE).toString();
+    const clean = path.replace(/^\/+/, '');
+    const url = new URL(clean, API_BASE).toString();
     return fetch(url, {credentials: 'include', ...options});
 };
 
