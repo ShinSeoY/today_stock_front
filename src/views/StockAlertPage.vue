@@ -356,7 +356,7 @@ const onSuggestionsScroll = (e) => {
 
 /** === API: 페이지 단위 검색 === **/
 const fetchSearchPage = async (keyword, page) => {
-    const res = await api('/v1/user/stock/search', {
+    const res = await api('v1/user/stock/search', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({keyword, page}),
@@ -435,7 +435,7 @@ const onKeydown = (e) => {
 /** === 상세 조회 === **/
 const fetchDetail = async (item) => {
     const payload = item?.url ? {url: item.url} : {code: item.code};
-    const res = await api('/v1/user/stock/detail', {
+    const res = await api('v1/user/stock/detail', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(payload),
@@ -527,7 +527,7 @@ const submitForm = async () => {
 
     try {
         isSubmitting.value = true;
-        const res = await api('/v1/user/alarm', {
+        const res = await api('v1/user/alarm', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(payload),
@@ -556,7 +556,7 @@ const loadAlarms = async () => {
     try {
         alarmsLoading.value = true;
         alarmsError.value = '';
-        const res = await api('/v1/user/alarm', {
+        const res = await api('v1/user/alarm', {
             method: 'GET',
             headers: {'Content-Type': 'application/json'},
         });
@@ -589,7 +589,7 @@ const activateAlarm = async (a) => {
             condition: a.condition || 'GTE',
         };
 
-        const res = await api('/v1/user/alarm', {
+        const res = await api('v1/user/alarm', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(payload),
@@ -626,7 +626,7 @@ const disableAlarm = async (code) => {
     try {
         disabling[code] = true;
 
-        const url = `/v1/user/alarm/${encodeURIComponent(code)}`;
+        const url = `v1/user/alarm/${encodeURIComponent(code)}`;
         const res = await api(url, {
             method: 'PUT',
             headers: {'Content-Type': 'application/json'},
@@ -653,7 +653,7 @@ const confirmDelete = async (code) => {
 const deleteAlarm = async (code) => {
     try {
         deleting[code] = true;
-        const url = `/v1/user/alarm/${encodeURIComponent(code)}`;
+        const url = `v1/user/alarm/${encodeURIComponent(code)}`;
         const res = await api(url, {
             method: 'DELETE',
             headers: {Accept: 'application/json'},
