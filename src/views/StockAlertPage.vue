@@ -242,15 +242,41 @@ const isValidEmail = (v) => {
 
 /** === 공통 API 래퍼 === **/
 const RAW_API_BASE = import.meta.env?.VITE_API_BASE_URL || '/api';
-
+// const RAW_API_BASE = 'http://localhost:8080';
 // '/api' 같은 상대 경로면 현재 오리진을 붙여 절대 URL로 변환
 const BASE = RAW_API_BASE.endsWith('/') ? RAW_API_BASE : RAW_API_BASE + '/';
 const API_BASE = new URL(BASE, window.location.origin);
 
-const api = (path, options = {}) => {
+const redirectToLogin = () => {
+    location.href = '/';
+};
+
+const api = async (path, options = {}) => {
     const clean = path.replace(/^\/+/, '');
     const url = new URL(clean, API_BASE).toString();
-    return fetch(url, {credentials: 'include', ...options});
+
+    const doFetch = () =>
+        fetch(url, {
+            credentials: 'include',
+            headers: {'Content-Type': 'application/json', ...(options.headers || {})},
+            ...options,
+        });
+
+    let res = await doFetch();
+    console.log(res);
+
+    if (res.status === 401) {
+        alert('재로그인이 필요합니다.');
+        redirectToLogin();
+    }
+
+    if (!res.ok) {
+        // 공통 에러 처리
+        const text = await res.text().catch(() => '');
+        throw new Error(`API ${res.status} ${res.statusText}: ${text}`);
+    }
+
+    return res;
 };
 
 const alarms = ref([]);

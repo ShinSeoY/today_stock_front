@@ -13,7 +13,8 @@
 </template>
 
 <script setup>
-const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL || '/api';
+const API_BASE_URL = process.env.VUE_APP_API_BASE_URL || '/api';
+// const API_BASE_URL = 'http://localhost:8080';
 const googleLoginUrl = API_BASE_URL + '/oauth2/authorization/google';
 const kakaoLoginUrl = API_BASE_URL + '/oauth2/authorization/kakao';
 </script>
