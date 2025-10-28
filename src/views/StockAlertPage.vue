@@ -49,7 +49,6 @@
                                 </div>
                             </li>
 
-                            <!-- ✅ 로딩/끝 표시 -->
                             <li v-if="isLoadingMore" class="suggestions-empty">더 불러오는 중…</li>
                             <li v-else-if="!hasMore" class="suggestions-empty">검색 결과 끝</li>
                         </ul>
@@ -103,7 +102,6 @@
                 </select>
             </div>
 
-            <!-- ▼ 템플릿의 버튼 교체 -->
             <button type="submit" class="submit-button" :disabled="isSubmitting">
                 {{ isSubmitting ? '처리 중…' : '알림 신청' }}
             </button>
@@ -115,12 +113,7 @@
                 <div v-else-if="alarms.length === 0" class="alarm-empty">등록된 알림이 없습니다.</div>
 
                 <ul v-else class="alarm-items">
-                    <li
-                        v-for="a in alarms"
-                        :key="a.code + String(a.date)"
-                        class="alarm-card"
-                        :class="{disabled: a.enable === false}"
-                    >
+                    <li v-for="a in alarms" :key="a.code" class="alarm-card" :class="{disabled: a.enable === false}">
                         <div class="a-left">
                             <div class="title-row">
                                 <span class="name">{{ a.name }}</span>
@@ -198,7 +191,7 @@
                     </li>
                 </ul>
 
-                <button type="button" class="refresh-button" @click="loadAlarms" :disabled="alarmsLoading">
+                <button type="button" class="refresh-button" @click="loadAlarms()" :disabled="alarmsLoading">
                     {{ alarmsLoading ? '불러오는 중…' : '새로고침' }}
                 </button>
             </div>
@@ -234,15 +227,15 @@ const suggestionsListRef = ref(null);
 
 let debounceTimer = null;
 
-// ✅ 페이지네이션용 상태
-const PAGE_SIZE = 20; // 백엔드 페이지 크기(바뀌면 맞춰 수정)
+// 페이지네이션
+const PAGE_SIZE = 20;
 const currentPage = ref(1);
 const hasMore = ref(true);
 const isLoadingMore = ref(false);
-let lastKeyword = ''; // 같은 키워드로 추가 로드할 때 사용
-let inFlight = false; // 중복 호출 방지
+let lastKeyword = '';
+let inFlight = false;
 
-// 서로 배타 잠금 플래그
+// 배타 입력
 const isThresholdLocked = computed(() => !!form.value.percent?.toString().trim());
 const isPercentLocked = computed(() => !!form.value.threshold?.toString().trim());
 
@@ -252,10 +245,8 @@ const isValidEmail = (v) => {
     return /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(s);
 };
 
-/** === 공통 API 래퍼 === **/
+/** === 공통 API === **/
 const RAW_API_BASE = import.meta.env?.VITE_API_BASE_URL || '/api';
-// const RAW_API_BASE = 'http://localhost:8080';
-// '/api' 같은 상대 경로면 현재 오리진을 붙여 절대 URL로 변환
 const BASE = RAW_API_BASE.endsWith('/') ? RAW_API_BASE : RAW_API_BASE + '/';
 const API_BASE = new URL(BASE, window.location.origin);
 
@@ -275,7 +266,6 @@ const api = async (path, options = {}) => {
         });
 
     let res = await doFetch();
-    console.log(res);
 
     if (res.status === 401) {
         alert('재로그인이 필요합니다.');
@@ -283,7 +273,6 @@ const api = async (path, options = {}) => {
     }
 
     if (!res.ok) {
-        // 공통 에러 처리
         const text = await res.text().catch(() => '');
         throw new Error(`API ${res.status} ${res.statusText}: ${text}`);
     }
@@ -295,22 +284,21 @@ const alarms = ref([]);
 const alarmsLoading = ref(false);
 const alarmsError = ref('');
 
-// 조건 한글 변환 (ConditionType: GTE/LTE 가정)
+// 조건 라벨
 const conditionKorean = (c) => (String(c) === 'GTE' ? '이상' : '이하');
 
-// 날짜 포맷 (LocalDateTime 문자열 대응)
+// 날짜 포맷
 const pad = (n) => (n < 10 ? '0' + n : '' + n);
 const formatDate = (dt) => {
     if (!dt) return '';
-    // 백엔드가 "2025-08-09T12:34:56" 같은 ISO 문자열을 보낸다고 가정
     const d = new Date(dt);
-    if (isNaN(d.getTime())) return String(dt); // 혹시 파싱 실패하면 원문 표시
+    if (isNaN(d.getTime())) return String(dt);
     return `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())} ${pad(d.getHours())}:${pad(
         d.getMinutes()
     )}`;
 };
 
-/** === 지정가 등락률 배타 잠금 플래그 === **/
+// 배타 입력 안내
 const onAttempt = (field) => {
     if (field === 'threshold' && isThresholdLocked.value) {
         alert('지정가와 등락률은 동시에 입력할 수 없어요.\n등락률을 지우고 지정가를 입력하거나, 그대로 진행하세요.');
@@ -322,7 +310,7 @@ const onAttempt = (field) => {
     }
 };
 
-/** === 외부 클릭 시 닫기 === **/
+/** === 외부 클릭 시 드롭다운 닫기 === **/
 const onClickOutside = (e) => {
     if (searchWrap.value && !searchWrap.value.contains(e.target)) {
         showSuggestions.value = false;
@@ -330,14 +318,54 @@ const onClickOutside = (e) => {
     }
 };
 
-/** === 15초마다 새로고침 === **/
+/** === 소프트 리프레시 세팅 === **/
 let pollTimer = null;
+
+const patchAlarmsInPlace = (nextList) => {
+    const byCode = new Map(alarms.value.map((a) => [a.code, a]));
+    // add/update
+    nextList.forEach((n) => {
+        const ex = byCode.get(n.code);
+        if (ex) {
+            Object.assign(ex, n);
+            byCode.delete(n.code);
+        } else {
+            alarms.value.push(n);
+        }
+    });
+    // remove
+    byCode.forEach((_, code) => {
+        const i = alarms.value.findIndex((a) => a.code === code);
+        if (i > -1) alarms.value.splice(i, 1);
+    });
+};
+
+const loadAlarms = async ({soft = false} = {}) => {
+    try {
+        if (!soft && alarms.value.length === 0) alarmsLoading.value = true;
+        alarmsError.value = '';
+
+        const res = await api('v1/user/alarm', {method: 'GET', headers: {'Content-Type': 'application/json'}});
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(json?.message || '알림 목록을 불러오지 못했습니다.');
+        const list = json?.data ?? json?.result ?? [];
+        const arr = Array.isArray(list) ? list : [];
+
+        if (soft) patchAlarmsInPlace(arr);
+        else alarms.value = arr;
+    } catch (e) {
+        console.error(e);
+        alarmsError.value = e.message || '알림 목록 로드 중 오류가 발생했습니다.';
+    } finally {
+        alarmsLoading.value = false;
+    }
+};
 
 const startPolling = () => {
     if (pollTimer) return;
     pollTimer = setInterval(() => {
-        if (document.visibilityState === 'visible') loadAlarms();
-    }, 15000); // 15초
+        if (document.visibilityState === 'visible') loadAlarms({soft: true});
+    }, 15000);
 };
 
 const stopPolling = () => {
@@ -347,30 +375,24 @@ const stopPolling = () => {
 };
 
 const onVisibilityChange = () => {
-    if (document.visibilityState === 'visible') loadAlarms();
+    if (document.visibilityState === 'visible') loadAlarms({soft: true});
 };
+const onWindowFocus = () => loadAlarms({soft: true});
 
 onMounted(() => {
     document.addEventListener('click', onClickOutside);
-    loadAlarms();
+    loadAlarms(); // 최초 하드 로드
     startPolling();
-    // 포커스/가시성 변화 시 즉시 새로고침
-    window.addEventListener('focus', loadAlarms);
+    window.addEventListener('focus', onWindowFocus);
     document.addEventListener('visibilitychange', onVisibilityChange);
 });
 
 onBeforeUnmount(() => {
     document.removeEventListener('click', onClickOutside);
     stopPolling();
-    window.removeEventListener('focus', loadAlarms);
+    window.removeEventListener('focus', onWindowFocus);
     document.removeEventListener('visibilitychange', onVisibilityChange);
 });
-
-// onMounted(() => {
-//     document.addEventListener('click', onClickOutside);
-//     loadAlarms(); // ✅ 초기 진입 시 불러오기
-// });
-// onBeforeUnmount(() => document.removeEventListener('click', onClickOutside));
 
 /** === 유틸 === **/
 const formatPrice = (n) => {
@@ -400,10 +422,10 @@ const toNumber = (v) => {
 };
 const parsePercent = (v) => {
     const n = toNumber(v);
-    return n === null ? null : n; // "5"나 "5%" -> 5.0으로 취급
+    return n === null ? null : n;
 };
 
-/** === 검색 입력 감지(디바운스) === **/
+/** === 검색 디바운스 === **/
 watch(
     () => searchQuery.value,
     (q) => {
@@ -417,18 +439,15 @@ watch(
             currentPage.value = 1;
             return;
         }
-        debounceTimer = setTimeout(() => doSearch(q.trim(), /* reset */ true), 350);
+        debounceTimer = setTimeout(() => doSearch(q.trim(), true), 350);
     }
 );
 
-/** === 스크롤 핸들러: 바닥 근처면 다음 페이지 로드 === **/
+/** === 무한 스크롤 === **/
 const onSuggestionsScroll = (e) => {
     if (!hasMore.value || isLoadingMore.value) return;
     const el = e.target;
-    // 바닥에서 48px 남았을 때 추가 로드
-    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 48) {
-        loadMore();
-    }
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 48) loadMore();
 };
 
 /** === API: 페이지 단위 검색 === **/
@@ -455,10 +474,9 @@ const doSearch = async (keyword, reset = false) => {
             hasMore.value = true;
             lastKeyword = keyword;
         }
-
         const list = await fetchSearchPage(keyword, currentPage.value);
         suggestions.value = list;
-        // ✅ 더 불러올 수 있는지 추정(백엔드가 total을 주면 그걸로 판단)
+        // 백엔드가 total을 주면 그걸로 판단
         hasMore.value = list.length >= PAGE_SIZE;
     } catch (e) {
         console.error(e);
@@ -480,7 +498,7 @@ const loadMore = async () => {
             suggestions.value = suggestions.value.concat(list);
             currentPage.value = nextPage;
         }
-        // ✅ 더 없음 판단
+        // 더 없음
         if (list.length < PAGE_SIZE) hasMore.value = false;
     } catch (e) {
         console.error(e);
@@ -490,7 +508,7 @@ const loadMore = async () => {
     }
 };
 
-/** === 키보드 내비게이션 === **/
+/** === 키보드 내비 === **/
 const onKeydown = (e) => {
     if (!showSuggestions.value || suggestions.value.length === 0) return;
     if (e.key === 'ArrowDown') {
@@ -545,7 +563,6 @@ const selectSuggestion = async (item) => {
             currencyCode: detail.currencyCode || 'KRW',
         };
 
-        // 지정가 자동 채우기 유지
         const priceInt = toPlainInt(detail.price);
         form.value.threshold = priceInt !== null ? String(priceInt) : '';
 
@@ -565,13 +582,11 @@ const submitForm = async () => {
         alert('종목을 먼저 선택해주세요.');
         return;
     }
-
     if (!form.value.email?.trim()) {
         alert('알림받을 이메일을 입력해주세요.');
         emailInput.value?.focus?.();
         return;
     }
-
     if (!isValidEmail(form.value.email)) {
         alert('이메일 형식이 올바르지 않습니다. 예: name@example.com');
         emailInput.value?.focus?.();
@@ -613,13 +628,12 @@ const submitForm = async () => {
         if (!res.ok) throw new Error(json?.message || '알림 신청에 실패했습니다.');
 
         alert('알림이 등록되었어요!');
-        console.log('alarm response:', json);
         searchQuery.value = '';
         form.value.email = '';
         form.value.percent = '';
         form.value.threshold = '';
 
-        await loadAlarms();
+        await loadAlarms({soft: false});
     } catch (e) {
         console.error(e);
         alert(e.message || '알림 신청 중 오류가 발생했습니다.');
@@ -628,28 +642,7 @@ const submitForm = async () => {
     }
 };
 
-// 알림 목록 로드
-const loadAlarms = async () => {
-    try {
-        alarmsLoading.value = true;
-        alarmsError.value = '';
-        const res = await api('v1/user/alarm', {
-            method: 'GET',
-            headers: {'Content-Type': 'application/json'},
-        });
-        const json = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(json?.message || '알림 목록을 불러오지 못했습니다.');
-        const list = json?.data ?? json?.result ?? [];
-        alarms.value = Array.isArray(list) ? list : [];
-    } catch (e) {
-        console.error(e);
-        alarmsError.value = e.message || '알림 목록 로드 중 오류가 발생했습니다.';
-    } finally {
-        alarmsLoading.value = false;
-    }
-};
-
-// 활성화: 비활성 알림을 /save 로 재저장
+// 활성화
 const activateAlarm = async (a) => {
     try {
         deleting[a.code] = true;
@@ -675,7 +668,7 @@ const activateAlarm = async (a) => {
         if (!res.ok) throw new Error(json?.message || '알림 활성화에 실패했습니다.');
 
         alert('알림이 활성화되었어요!');
-        await loadAlarms();
+        await loadAlarms({soft: true});
     } catch (e) {
         console.error(e);
         alert(e.message || '활성화 중 오류가 발생했습니다.');
@@ -684,35 +677,30 @@ const activateAlarm = async (a) => {
     }
 };
 
-// ===== 삭제/비활성화 상태 관리 =====
-const deleting = reactive({}); // code -> boolean (기존)
-const disabling = reactive({}); // code -> boolean (신규)
-
+// 삭제/비활성화 상태
+const deleting = reactive({});
+const disabling = reactive({});
 const isDeleting = (code) => !!deleting[code];
 const isDisabling = (code) => !!disabling[code];
 
-// 비활성화 확인 다이얼로그
+// 비활성화
 const confirmDisable = async (code) => {
     if (!code) return;
     if (!confirm('이 알림을 비활성화할까요?')) return;
     await disableAlarm(code);
 };
 
-// /disable 호출
 const disableAlarm = async (code) => {
     try {
         disabling[code] = true;
 
         const url = `v1/user/alarm/${encodeURIComponent(code)}`;
-        const res = await api(url, {
-            method: 'PUT',
-            headers: {'Content-Type': 'application/json'},
-        });
+        const res = await api(url, {method: 'PUT', headers: {'Content-Type': 'application/json'}});
         const json = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(json?.message || '알림 비활성화에 실패했습니다.');
 
         alert('알림이 비활성화되었어요.');
-        await loadAlarms();
+        await loadAlarms({soft: true});
     } catch (e) {
         console.error(e);
         alert(e.message || '비활성화 중 오류가 발생했습니다.');
@@ -731,13 +719,12 @@ const deleteAlarm = async (code) => {
     try {
         deleting[code] = true;
         const url = `v1/user/alarm/${encodeURIComponent(code)}`;
-        const res = await api(url, {
-            method: 'DELETE',
-            headers: {Accept: 'application/json'},
-        });
+        const res = await api(url, {method: 'DELETE', headers: {Accept: 'application/json'}});
         const json = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(json?.message || '알림 삭제에 실패했습니다.');
-        alarms.value = alarms.value.filter((a) => a.code !== code);
+        // 즉시 로컬 반영
+        const idx = alarms.value.findIndex((a) => a.code === code);
+        if (idx > -1) alarms.value.splice(idx, 1);
     } catch (e) {
         console.error(e);
         alert(e.message || '삭제 중 오류가 발생했습니다.');
@@ -773,7 +760,7 @@ h2 {
     margin-bottom: 16px;
     display: flex;
     flex-direction: column;
-    position: relative; /* 드롭다운 포지셔닝 */
+    position: relative;
 }
 
 input,
@@ -800,7 +787,7 @@ small {
     margin-top: 4px;
 }
 
-/* ===== 자동완성 드롭다운 ===== */
+/* ===== 자동완성 ===== */
 .suggestions {
     position: absolute;
     top: calc(100% + 6px);
@@ -834,6 +821,7 @@ small {
     grid-template-columns: 1fr auto;
     gap: 6px 12px;
     cursor: pointer;
+    transition: background-color 0.15s ease;
 }
 .suggestions-item:hover,
 .suggestions-item.active {
@@ -856,7 +844,6 @@ small {
     color: #9ca3af;
     text-align: right;
 }
-
 mark {
     background: #fff2ac;
     padding: 0 2px;
@@ -881,11 +868,9 @@ mark {
     margin-top: 32px;
     font-weight: bold;
 }
-
 .alarm-list {
     margin-top: 12px;
 }
-
 .alarm-empty {
     padding: 12px;
     color: #6b7280;
@@ -914,37 +899,49 @@ mark {
     border: 1px solid #e5e7eb;
     border-radius: 12px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    transition:
+        background-color 0.25s ease,
+        border-color 0.25s ease,
+        box-shadow 0.25s ease,
+        color 0.25s ease,
+        transform 0.12s ease; /* ✅ 부드러운 전환 */
 }
 .alarm-card:hover {
-    border-color: #c7d2fe; /* indigo-200 느낌 */
+    border-color: #c7d2fe;
     box-shadow: 0 4px 14px rgba(37, 99, 235, 0.08);
 }
-
-/* 비활성 카드: 배경/테두리/텍스트를 회색톤으로 */
-.alarm-card.disabled {
-    background: #f9fafb; /* 옅은 회색 배경 */
-    border: 1px solid #e5e7eb;
-    color: #6b7280; /* 텍스트 전체 톤 다운 */
-    opacity: 1; /* 기존의 흐림(opacity) 대신 확실한 색상톤 사용 */
-    filter: none; /* grayscale 제거 */
+.alarm-card:not(.disabled):hover {
+    transform: translateY(-1px);
 }
 
-/* 비활성 카드 안의 제목/코드/가격도 회색 계열 */
+/* ✅ 비활성 카드: 더 명확한 회색 톤 */
+.alarm-card.disabled {
+    background: #f3f4f6; /* 한 톤 더 진하게 */
+    border-color: #d1d5db;
+    color: #6b7280;
+}
 .alarm-card.disabled .name,
 .alarm-card.disabled .code,
 .alarm-card.disabled .price,
 .alarm-card.disabled .date,
 .alarm-card.disabled .email {
-    color: #9ca3af; /* 더 옅은 회색 */
+    color: #9ca3af;
 }
 
-/* 비활성 카드 hover 시 효과 제거 (활성 카드와 구분) */
-.alarm-card.disabled:hover {
+/* 칩도 채도 낮추기 */
+.alarm-card.disabled .chip {
+    opacity: 0.85;
+    filter: saturate(0.6);
     border-color: #e5e7eb;
+}
+
+/* 비활성 hover 억제 */
+.alarm-card.disabled:hover {
+    border-color: #d1d5db;
     box-shadow: none;
 }
 
-/* ===== 좌측(제목/메타) ===== */
+/* ===== 좌측 ===== */
 .title-row {
     display: flex;
     gap: 6px;
@@ -975,13 +972,17 @@ mark {
     font-weight: 600;
 }
 
-/* 조건 배지 */
+/* 칩 */
 .chip {
     font-size: 12px;
     padding: 2px 8px;
     border-radius: 9999px;
     border: 1px solid;
     font-weight: 600;
+    transition:
+        background-color 0.2s ease,
+        color 0.2s ease,
+        border-color 0.2s ease;
 }
 .chip-up {
     background: #eff6ff;
@@ -994,7 +995,7 @@ mark {
     border-color: #fee2e2;
 }
 
-/* ===== 우측(버튼/정보) ===== */
+/* ===== 우측 ===== */
 .a-right {
     text-align: right;
     display: flex;
@@ -1002,13 +1003,15 @@ mark {
     align-items: flex-end;
     gap: 8px;
 }
-
-/* 상태 배지(우측 상단만 사용) */
 .status-badge {
     font-size: 11px;
     padding: 2px 8px;
     border-radius: 9999px;
     border: 1px solid #e5e7eb;
+    transition:
+        opacity 0.2s ease,
+        background-color 0.2s ease,
+        color 0.2s ease;
 }
 .status-badge.off {
     background: #f3f4f6;
@@ -1016,13 +1019,12 @@ mark {
     border-color: #e5e7eb;
 }
 
-/* 버튼 가로 정렬 */
 .btn-row {
     display: flex;
     gap: 6px;
 }
 
-/* 공용 버튼 크기 */
+/* 공용 버튼 */
 .btn-row button,
 .delete-button,
 .disable-button,
@@ -1056,14 +1058,14 @@ mark {
 
 /* 비활성화 버튼 */
 .disable-button {
-    background: #fff7ed; /* orange-50 */
-    color: #c2410c; /* orange-700 */
-    border: 1px solid #fed7aa; /* orange-200 */
+    background: #fff7ed;
+    color: #c2410c;
+    border: 1px solid #fed7aa;
     cursor: pointer;
 }
 .disable-button:hover {
-    background: #ffedd5; /* orange-100 */
-    border-color: #fb923c; /* orange-400 */
+    background: #ffedd5;
+    border-color: #fb923c;
     box-shadow: 0 0 0 3px rgba(251, 146, 60, 0.15);
 }
 .disable-button:disabled {
@@ -1076,7 +1078,7 @@ mark {
 .delete-button {
     background: #ffffff;
     color: #b91c1c;
-    border: 1px solid #fca5a5; /* light red */
+    border: 1px solid #fca5a5;
     cursor: pointer;
 }
 .delete-button:hover {
@@ -1099,7 +1101,7 @@ mark {
     color: #6b7280;
 }
 
-/* ===== 새로고침 버튼 ===== */
+/* 새로고침 버튼 */
 .refresh-button {
     width: 100%;
     margin-top: 12px;
