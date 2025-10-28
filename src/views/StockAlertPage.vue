@@ -141,7 +141,7 @@
                             <!-- 상태 배지: 비활성일 때만 노출 -->
                             <span v-if="a.enable === false" class="status-badge off">비활성화됨</span>
 
-                            <!-- 비활성 카드: 활성화 버튼만 -->
+                            <!-- 비활성 카드: 활성화 + 삭제 -->
                             <div v-if="a.enable === false" class="btn-row">
                                 <button
                                     type="button"
@@ -152,6 +152,18 @@
                                     title="알림 활성화"
                                 >
                                     {{ isDeleting(a.code) || isDisabling(a.code) ? '처리 중…' : '활성화' }}
+                                </button>
+
+                                <!-- 비활성 상태에서도 삭제 버튼 추가 -->
+                                <button
+                                    type="button"
+                                    class="delete-button"
+                                    @click="confirmDelete(a.code)"
+                                    :disabled="isDeleting(a.code) || isDisabling(a.code)"
+                                    aria-label="알림 삭제"
+                                    title="알림 삭제"
+                                >
+                                    {{ isDeleting(a.code) ? '삭제 중…' : '삭제' }}
                                 </button>
                             </div>
 
@@ -317,11 +329,48 @@ const onClickOutside = (e) => {
         highlightedIndex.value = -1;
     }
 };
+
+/** === 15초마다 새로고침 === **/
+let pollTimer = null;
+
+const startPolling = () => {
+    if (pollTimer) return;
+    pollTimer = setInterval(() => {
+        if (document.visibilityState === 'visible') loadAlarms();
+    }, 15000); // 15초
+};
+
+const stopPolling = () => {
+    if (!pollTimer) return;
+    clearInterval(pollTimer);
+    pollTimer = null;
+};
+
+const onVisibilityChange = () => {
+    if (document.visibilityState === 'visible') loadAlarms();
+};
+
 onMounted(() => {
     document.addEventListener('click', onClickOutside);
-    loadAlarms(); // ✅ 초기 진입 시 불러오기
+    loadAlarms();
+    startPolling();
+    // 포커스/가시성 변화 시 즉시 새로고침
+    window.addEventListener('focus', loadAlarms);
+    document.addEventListener('visibilitychange', onVisibilityChange);
 });
-onBeforeUnmount(() => document.removeEventListener('click', onClickOutside));
+
+onBeforeUnmount(() => {
+    document.removeEventListener('click', onClickOutside);
+    stopPolling();
+    window.removeEventListener('focus', loadAlarms);
+    document.removeEventListener('visibilitychange', onVisibilityChange);
+});
+
+// onMounted(() => {
+//     document.addEventListener('click', onClickOutside);
+//     loadAlarms(); // ✅ 초기 진입 시 불러오기
+// });
+// onBeforeUnmount(() => document.removeEventListener('click', onClickOutside));
 
 /** === 유틸 === **/
 const formatPrice = (n) => {
