@@ -250,8 +250,8 @@ const isValidEmail = (v) => {
 };
 
 /** === 공통 API === **/
-// const RAW_API_BASE = import.meta.env?.VITE_API_BASE_URL || '/api';
-const RAW_API_BASE = 'http://localhost:8080';
+const RAW_API_BASE = import.meta.env?.VITE_API_BASE_URL || '/api';
+// const RAW_API_BASE = 'http://localhost:8080';
 const BASE = RAW_API_BASE.endsWith('/') ? RAW_API_BASE : RAW_API_BASE + '/';
 const API_BASE = new URL(BASE, window.location.origin);
 
