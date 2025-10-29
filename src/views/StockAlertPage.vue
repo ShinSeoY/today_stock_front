@@ -107,6 +107,10 @@
             </button>
 
             <h3 class="alert-list-title">내 알림 리스트</h3>
+            <p class="list-note" role="note" aria-live="polite">
+                🔕 알림은 조건을 한 번 충족하면 <strong>자동으로 비활성화</strong>돼요. 계속 받으려면
+                ‘<strong>활성화</strong>’를 눌러 주세요.
+            </p>
             <div class="alarm-list">
                 <div v-if="alarmsLoading" class="alarm-empty">불러오는 중…</div>
                 <div v-else-if="alarmsError" class="alarm-empty">{{ alarmsError }}</div>
@@ -246,7 +250,8 @@ const isValidEmail = (v) => {
 };
 
 /** === 공통 API === **/
-const RAW_API_BASE = import.meta.env?.VITE_API_BASE_URL || '/api';
+// const RAW_API_BASE = import.meta.env?.VITE_API_BASE_URL || '/api';
+const RAW_API_BASE = 'http://localhost:8080';
 const BASE = RAW_API_BASE.endsWith('/') ? RAW_API_BASE : RAW_API_BASE + '/';
 const API_BASE = new URL(BASE, window.location.origin);
 
@@ -1124,5 +1129,19 @@ mark {
     opacity: 0.6;
     cursor: default;
     box-shadow: none;
+}
+.list-note {
+    margin-top: 8px;
+    margin-bottom: 6px;
+    padding: 10px 12px;
+    font-size: 13px;
+    line-height: 1.45;
+    background: #f3f4f6; /* 회색 좀 진하게 */
+    color: #4b5563; /* 진한 회색 텍스트 */
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+}
+.list-note strong {
+    font-weight: 700;
 }
 </style>
