@@ -117,7 +117,7 @@
                 <div v-else-if="alarms.length === 0" class="alarm-empty">등록된 알림이 없습니다.</div>
 
                 <ul v-else class="alarm-items">
-                    <li v-for="a in alarms" :key="a.code" class="alarm-card" :class="{disabled: a.enable === false}">
+                    <li v-for="a in alarms" :key="idOf(a)" class="alarm-card" :class="{disabled: a.enable === false}">
                         <div class="a-left">
                             <div class="title-row">
                                 <span class="name">{{ a.name }}</span>
@@ -144,23 +144,23 @@
                                     type="button"
                                     class="activate-button"
                                     @click="activateAlarm(a)"
-                                    :disabled="isDeleting(a.code) || isDisabling(a.code)"
+                                    :disabled="isDeleting(idOf(a)) || isDisabling(idOf(a))"
                                     aria-label="알림 활성화"
                                     title="알림 활성화"
                                 >
-                                    {{ isDeleting(a.code) || isDisabling(a.code) ? '처리 중…' : '활성화' }}
+                                    {{ isDeleting(idOf(a)) || isDisabling(idOf(a)) ? '처리 중…' : '활성화' }}
                                 </button>
 
                                 <!-- 비활성 상태에서도 삭제 버튼 추가 -->
                                 <button
                                     type="button"
                                     class="delete-button"
-                                    @click="confirmDelete(a.code)"
-                                    :disabled="isDeleting(a.code) || isDisabling(a.code)"
+                                    @click="confirmDelete(idOf(a))"
+                                    :disabled="isDeleting(idOf(a)) || isDisabling(idOf(a))"
                                     aria-label="알림 삭제"
                                     title="알림 삭제"
                                 >
-                                    {{ isDeleting(a.code) ? '삭제 중…' : '삭제' }}
+                                    {{ isDeleting(idOf(a)) ? '삭제 중…' : '삭제' }}
                                 </button>
                             </div>
 
@@ -169,23 +169,23 @@
                                 <button
                                     type="button"
                                     class="disable-button"
-                                    @click="confirmDisable(a.code)"
-                                    :disabled="isDeleting(a.code) || isDisabling(a.code)"
+                                    @click="confirmDisable(idOf(a))"
+                                    :disabled="isDeleting(idOf(a)) || isDisabling(idOf(a))"
                                     aria-label="알림 비활성화"
                                     title="알림 비활성화"
                                 >
-                                    {{ isDisabling(a.code) ? '비활성화 중…' : '비활성화' }}
+                                    {{ isDisabling(idOf(a)) ? '비활성화 중…' : '비활성화' }}
                                 </button>
 
                                 <button
                                     type="button"
                                     class="delete-button"
-                                    @click="confirmDelete(a.code)"
-                                    :disabled="isDeleting(a.code) || isDisabling(a.code)"
+                                    @click="confirmDelete(idOf(a))"
+                                    :disabled="isDeleting(idOf(a)) || isDisabling(idOf(a))"
                                     aria-label="알림 삭제"
                                     title="알림 삭제"
                                 >
-                                    {{ isDeleting(a.code) ? '삭제 중…' : '삭제' }}
+                                    {{ isDeleting(idOf(a)) ? '삭제 중…' : '삭제' }}
                                 </button>
                             </div>
 
@@ -303,6 +303,8 @@ const formatDate = (dt) => {
     )}`;
 };
 
+const idOf = (a) => a.configHash;
+
 // 배타 입력 안내
 const onAttempt = (field) => {
     if (field === 'threshold' && isThresholdLocked.value) {
@@ -327,20 +329,20 @@ const onClickOutside = (e) => {
 let pollTimer = null;
 
 const patchAlarmsInPlace = (nextList) => {
-    const byCode = new Map(alarms.value.map((a) => [a.code, a]));
-    // add/update
+    const byId = new Map(alarms.value.map((a) => [idOf(a), a]));
     nextList.forEach((n) => {
-        const ex = byCode.get(n.code);
+        const key = idOf(n);
+        const ex = byId.get(key);
         if (ex) {
             Object.assign(ex, n);
-            byCode.delete(n.code);
+            byId.delete(key);
         } else {
             alarms.value.push(n);
         }
     });
-    // remove
-    byCode.forEach((_, code) => {
-        const i = alarms.value.findIndex((a) => a.code === code);
+    // remove (서버에서 빠진 항목 제거)
+    byId.forEach((_, key) => {
+        const i = alarms.value.findIndex((a) => idOf(a) === key);
         if (i > -1) alarms.value.splice(i, 1);
     });
 };
@@ -649,8 +651,9 @@ const submitForm = async () => {
 
 // 활성화
 const activateAlarm = async (a) => {
+    const id = idOf(a);
     try {
-        deleting[a.code] = true;
+        deleting[id] = true;
 
         const payload = {
             stock: {
@@ -678,28 +681,28 @@ const activateAlarm = async (a) => {
         console.error(e);
         alert(e.message || '활성화 중 오류가 발생했습니다.');
     } finally {
-        deleting[a.code] = false;
+        deleting[id] = false;
     }
 };
 
 // 삭제/비활성화 상태
 const deleting = reactive({});
 const disabling = reactive({});
-const isDeleting = (code) => !!deleting[code];
-const isDisabling = (code) => !!disabling[code];
+const isDeleting = (id) => !!deleting[id];
+const isDisabling = (id) => !!disabling[id];
 
 // 비활성화
-const confirmDisable = async (code) => {
-    if (!code) return;
+const confirmDisable = async (id) => {
+    if (!id) return;
     if (!confirm('이 알림을 비활성화할까요?')) return;
-    await disableAlarm(code);
+    await disableAlarm(id);
 };
 
-const disableAlarm = async (code) => {
+const disableAlarm = async (id) => {
     try {
-        disabling[code] = true;
+        disabling[id] = true;
 
-        const url = `v1/user/alarm/${encodeURIComponent(code)}`;
+        const url = `v1/user/alarm/${encodeURIComponent(id)}`;
         const res = await api(url, {method: 'PUT', headers: {'Content-Type': 'application/json'}});
         const json = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(json?.message || '알림 비활성화에 실패했습니다.');
@@ -710,31 +713,31 @@ const disableAlarm = async (code) => {
         console.error(e);
         alert(e.message || '비활성화 중 오류가 발생했습니다.');
     } finally {
-        disabling[code] = false;
+        disabling[id] = false;
     }
 };
 
-const confirmDelete = async (code) => {
-    if (!code) return;
+const confirmDelete = async (id) => {
+    if (!id) return;
     if (!confirm('이 알림을 삭제할까요?')) return;
-    await deleteAlarm(code);
+    await deleteAlarm(id);
 };
 
-const deleteAlarm = async (code) => {
+const deleteAlarm = async (id) => {
     try {
-        deleting[code] = true;
-        const url = `v1/user/alarm/${encodeURIComponent(code)}`;
+        deleting[id] = true;
+        const url = `v1/user/alarm/${encodeURIComponent(id)}`;
         const res = await api(url, {method: 'DELETE', headers: {Accept: 'application/json'}});
         const json = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(json?.message || '알림 삭제에 실패했습니다.');
         // 즉시 로컬 반영
-        const idx = alarms.value.findIndex((a) => a.code === code);
+        const idx = alarms.value.findIndex((a) => idOf(a) === id);
         if (idx > -1) alarms.value.splice(idx, 1);
     } catch (e) {
         console.error(e);
         alert(e.message || '삭제 중 오류가 발생했습니다.');
     } finally {
-        deleting[code] = false;
+        deleting[id] = false;
     }
 };
 </script>
