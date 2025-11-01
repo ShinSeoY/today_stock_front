@@ -130,7 +130,7 @@
                                 </span>
 
                                 <span class="dot">•</span>
-                                <span class="price">{{ formatPrice(a.price) }} {{ a.currencyCode || 'KRW' }}</span>
+                                <span class="price">{{ a.price }} {{ a.currencyCode || 'USD' }}</span>
                             </div>
                         </div>
 
@@ -402,10 +402,6 @@ onBeforeUnmount(() => {
 });
 
 /** === 유틸 === **/
-const formatPrice = (n) => {
-    if (n === null || n === undefined || isNaN(n)) return '';
-    return `${Math.round(Number(n)).toLocaleString('ko-KR')}`;
-};
 const escapeRE = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const highlightMatch = (text) => {
     const q = searchQuery.value.trim();
@@ -546,22 +542,13 @@ const fetchDetail = async (item) => {
     return json?.data ?? json?.result ?? null;
 };
 
-const toPlainInt = (v) => {
-    if (v === null || v === undefined) return null;
-    if (typeof v === 'number') return Math.round(v);
-    const n = Number(String(v).replace(/[^\d.]/g, ''));
-    return Number.isFinite(n) ? Math.round(n) : null;
-};
-
 const selectSuggestion = async (item) => {
     try {
         const detail = await fetchDetail(item);
         if (!detail) return;
 
         form.value.stockCode = detail.code;
-        searchQuery.value = `${detail.name} (${detail.code}) · ${formatPrice(detail.price)} ${
-            detail.currencyCode || 'KRW'
-        }`;
+        searchQuery.value = `${detail.name} (${detail.code}) · ${detail.price} ${detail.currencyCode || 'KRW'}`;
         selectedStock.value = {
             code: detail.code,
             url: item.url || '',
@@ -570,7 +557,7 @@ const selectSuggestion = async (item) => {
             currencyCode: detail.currencyCode || 'KRW',
         };
 
-        const priceInt = toPlainInt(detail.price);
+        const priceInt = detail.price;
         form.value.threshold = priceInt !== null ? String(priceInt) : '';
 
         showSuggestions.value = false;
