@@ -6,7 +6,6 @@
             <!-- 종목 검색 -->
             <div class="form-group" ref="searchWrap">
                 <label>종목검색</label>
-
                 <input
                     v-model="searchQuery"
                     placeholder="종목명 또는 코드로 검색 (예: 삼성 또는 005930)"
@@ -14,7 +13,6 @@
                     @focus="showSuggestions = true"
                     @keydown="onKeydown"
                 />
-
                 <small>검색어 입력 시 자동으로 결과가 나타납니다.</small>
 
                 <div v-if="showSuggestions" class="suggestions">
@@ -82,16 +80,30 @@
                 />
             </div>
 
-            <!-- 등락률 -->
+            <!-- 등락률 + 계산 미리보기 -->
             <div class="form-group">
                 <label>등락률</label>
-                <input
-                    v-model="form.percent"
-                    placeholder="예: 5%"
-                    ref="percentInput"
-                    :readonly="isPercentLocked"
-                    @focus="onAttempt('percent')"
-                />
+                <div class="percent-row">
+                    <input
+                        v-model="form.percent"
+                        placeholder="예: 5%"
+                        ref="percentInput"
+                        :readonly="isPercentLocked"
+                        @focus="onAttempt('percent')"
+                    />
+                    <!-- 지정가가 없고 등락률/현재가가 유효할 때만 표시 -->
+                    <span
+                        v-if="showCalc"
+                        :class="['calc-badge', form.condition === 'GTE' ? 'up' : 'down']"
+                        aria-live="polite"
+                    >
+                        {{ conditionKorean(form.condition) }} {{ normalizedPercent }}% →
+                        {{ formatCurrency(calcPrice, selectedStock?.currencyCode || 'KRW') }}
+                    </span>
+                </div>
+                <small v-if="showCalc" class="calc-note">
+                    현재가 {{ formatCurrency(currentPrice || 0, selectedStock?.currencyCode || 'KRW') }} 기준 계산
+                </small>
             </div>
 
             <div class="form-group">
@@ -427,6 +439,35 @@ const parsePercent = (v) => {
     const n = toNumber(v);
     return n === null ? null : n;
 };
+const formatCurrency = (n, code = 'KRW') => {
+    const val = Number(n) || 0;
+    const dd =
+        code === 'KRW'
+            ? {minimumFractionDigits: 0, maximumFractionDigits: 0}
+            : {minimumFractionDigits: 2, maximumFractionDigits: 2};
+    return new Intl.NumberFormat('ko-KR', dd).format(val) + ` ${code}`;
+};
+
+/** === 계산 미리보기 === **/
+const currentPrice = computed(() => toNumber(selectedStock.value?.price));
+const percentNumber = computed(() => parsePercent(form.value.percent));
+const normalizedPercent = computed(() => (percentNumber.value ?? 0).toString());
+const hasThreshold = computed(() => toNumber(form.value.threshold) !== null);
+
+// 지정가가 없고 유효 값 있을 때만 보여줌
+const showCalc = computed(() => !hasThreshold.value && currentPrice.value !== null && percentNumber.value !== null);
+
+// 조건(이상/이하)에 맞춰 목표가 계산
+const calcPrice = computed(() => {
+    if (!showCalc.value) return null;
+    const base = currentPrice.value;
+    const p = percentNumber.value / 100;
+    const target =
+        form.value.condition === 'GTE'
+            ? base * (1 + p) // 이상
+            : base * (1 - p); // 이하
+    return Math.round(target);
+});
 
 /** === 검색 디바운스 === **/
 watch(
@@ -557,15 +598,29 @@ const selectSuggestion = async (item) => {
             currencyCode: detail.currencyCode || 'KRW',
         };
 
-        const priceInt = detail.price;
-        form.value.threshold = priceInt !== null ? String(priceInt) : '';
+        const percentFilled = !!String(form.value.percent || '').trim();
+
+        if (percentFilled) {
+            // 등락률 모드였다면: 지정가를 비워 락 해제 + 미리보기는 새 현재가로 자동 재계산
+            form.value.threshold = '';
+        } else {
+            // 지정가 모드였다면: 새 종목 현재가로 지정가 갱신(기존 동작 유지)
+            const priceInt = detail.price;
+            form.value.threshold = priceInt !== null ? String(priceInt) : '';
+        }
 
         showSuggestions.value = false;
         highlightedIndex.value = -1;
 
         await nextTick();
-        thresholdInput.value?.focus?.();
-        thresholdInput.value?.select?.();
+        // ✅ 포커스도 모드에 맞게
+        if (percentFilled) {
+            percentInput.value?.focus?.();
+            percentInput.value?.select?.();
+        } else {
+            thresholdInput.value?.focus?.();
+            thresholdInput.value?.select?.();
+        }
     } catch (e) {
         console.error(e);
     }
@@ -588,7 +643,6 @@ const submitForm = async () => {
         return;
     }
 
-    const currentPrice = toNumber(selectedStock.value.price);
     const requestPrice = toNumber(form.value.threshold);
     const percent = parsePercent(form.value.percent);
 
@@ -605,7 +659,7 @@ const submitForm = async () => {
             currencyCode: selectedStock.value.currencyCode,
         },
         requestEmail: form.value.email.trim(),
-        currentPrice: currentPrice ?? 0,
+        currentPrice: currentPrice.value ?? 0,
         requestPrice: requestPrice,
         percent: percent,
         condition: form.value.condition,
@@ -717,7 +771,6 @@ const deleteAlarm = async (id) => {
         const res = await api(url, {method: 'DELETE', headers: {Accept: 'application/json'}});
         const json = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(json?.message || '알림 삭제에 실패했습니다.');
-        // 즉시 로컬 반영
         const idx = alarms.value.findIndex((a) => idOf(a) === id);
         if (idx > -1) alarms.value.splice(idx, 1);
     } catch (e) {
@@ -780,6 +833,36 @@ small {
     font-size: 12px;
     color: #6b7280;
     margin-top: 4px;
+}
+
+/* ===== 등락률 미리보기 ===== */
+.percent-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.calc-badge {
+    white-space: nowrap;
+    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: 9999px;
+    border: 1px solid #e5e7eb;
+    background: #fff;
+    color: #374151;
+    font-weight: 600;
+}
+.calc-badge.up {
+    color: #1d4ed8;
+    border-color: #dbeafe;
+}
+.calc-badge.down {
+    color: #b91c1c;
+    border-color: #fecaca;
+}
+.calc-note {
+    color: #6b7280;
+    margin-top: 4px;
+    font-size: 12px;
 }
 
 /* ===== 자동완성 ===== */
@@ -850,15 +933,15 @@ mark {
     width: 100%;
     padding: 12px;
     font-size: 16px;
-    background-color: #2563eb;
-    color: white;
+    background: #2563eb;
+    color: #fff;
     border: none;
     border-radius: 6px;
     cursor: pointer;
     margin-top: 8px;
 }
 
-/* ===== 리스트 컨테이너 ===== */
+/* ===== 리스트 컨테이너/카드 ===== */
 .alert-list-title {
     margin-top: 32px;
     font-weight: bold;
@@ -875,8 +958,6 @@ mark {
     border: 1px solid #eef2f7;
     border-radius: 8px;
 }
-
-/* ===== 알림 카드 ===== */
 .alarm-items {
     list-style: none;
     padding: 0;
@@ -899,7 +980,7 @@ mark {
         border-color 0.25s ease,
         box-shadow 0.25s ease,
         color 0.25s ease,
-        transform 0.12s ease; /* ✅ 부드러운 전환 */
+        transform 0.12s ease;
 }
 .alarm-card:hover {
     border-color: #c7d2fe;
@@ -909,9 +990,8 @@ mark {
     transform: translateY(-1px);
 }
 
-/* ✅ 비활성 카드: 더 명확한 회색 톤 */
 .alarm-card.disabled {
-    background: #f3f4f6; /* 한 톤 더 진하게 */
+    background: #f3f4f6;
     border-color: #d1d5db;
     color: #6b7280;
 }
@@ -922,21 +1002,17 @@ mark {
 .alarm-card.disabled .email {
     color: #9ca3af;
 }
-
-/* 칩도 채도 낮추기 */
 .alarm-card.disabled .chip {
     opacity: 0.85;
     filter: saturate(0.6);
     border-color: #e5e7eb;
 }
-
-/* 비활성 hover 억제 */
 .alarm-card.disabled:hover {
     border-color: #d1d5db;
     box-shadow: none;
 }
 
-/* ===== 좌측 ===== */
+/* 좌측 */
 .title-row {
     display: flex;
     gap: 6px;
@@ -990,7 +1066,7 @@ mark {
     border-color: #fee2e2;
 }
 
-/* ===== 우측 ===== */
+/* 우측 */
 .a-right {
     text-align: right;
     display: flex;
@@ -1018,8 +1094,6 @@ mark {
     display: flex;
     gap: 6px;
 }
-
-/* 공용 버튼 */
 .btn-row button,
 .delete-button,
 .disable-button,
@@ -1032,11 +1106,9 @@ mark {
         box-shadow 0.15s ease,
         background-color 0.15s ease;
 }
-
-/* 활성화 버튼 */
 .activate-button {
     background: #2563eb;
-    color: #ffffff;
+    color: #fff;
     border: 1px solid #2563eb;
     cursor: pointer;
 }
@@ -1051,7 +1123,6 @@ mark {
     box-shadow: none;
 }
 
-/* 비활성화 버튼 */
 .disable-button {
     background: #fff7ed;
     color: #c2410c;
@@ -1069,9 +1140,8 @@ mark {
     box-shadow: none;
 }
 
-/* 삭제 버튼 */
 .delete-button {
-    background: #ffffff;
+    background: #fff;
     color: #b91c1c;
     border: 1px solid #fca5a5;
     cursor: pointer;
@@ -1102,7 +1172,7 @@ mark {
     margin-top: 12px;
     padding: 10px 12px;
     font-size: 14px;
-    background: #ffffff;
+    background: #fff;
     color: #111827;
     border: 1px solid #d1d5db;
     border-radius: 8px;
@@ -1120,14 +1190,15 @@ mark {
     cursor: default;
     box-shadow: none;
 }
+
 .list-note {
     margin-top: 8px;
     margin-bottom: 6px;
     padding: 10px 12px;
     font-size: 13px;
     line-height: 1.45;
-    background: #f3f4f6; /* 회색 좀 진하게 */
-    color: #4b5563; /* 진한 회색 텍스트 */
+    background: #f3f4f6;
+    color: #4b5563;
     border: 1px solid #e5e7eb;
     border-radius: 8px;
 }
